@@ -1,0 +1,545 @@
+---
+title: "BUAN6357_Shiny2_Upadhyay"
+author: "Vikalp Upadhyay"
+date: "7/15/2019"
+---
+
+Load libraries
+```{r}
+if("janitor" %in% rownames(installed.packages()) == FALSE) {install.packages("janitor", repos='http://cran.us.r-project.org')} else{library(janitor)}
+if("lubridate" %in% rownames(installed.packages()) == FALSE) {install.packages("lubridate", repos='http://cran.us.r-project.org')} else{library(lubridate)}
+if("rgdal" %in% rownames(installed.packages()) == FALSE) {install.packages("rgdal", repos='http://cran.us.r-project.org')} else{library(rgdal)}
+if("tidyverse" %in% rownames(installed.packages()) == FALSE) {install.packages("tidyverse", repos='http://cran.us.r-project.org')} else{library(tidyverse)}
+if("shiny" %in% rownames(installed.packages()) == FALSE) {install.packages("shiny", repos='http://cran.us.r-project.org')} else{library(shiny)}
+if("dplyr" %in% rownames(installed.packages()) == FALSE) {install.packages("dplyr", repos='http://cran.us.r-project.org')} else{library(dplyr)}
+if("ggthemes" %in% rownames(installed.packages()) == FALSE) {install.packages("ggthemes", repos='http://cran.us.r-project.org')} else{library(ggthemes)}
+if("viridis" %in% rownames(installed.packages()) == FALSE) {install.packages("viridis", repos='http://cran.us.r-project.org')} else{library(viridis)}
+if("gplots" %in% rownames(installed.packages()) == FALSE) {install.packages("gplots", repos='http://cran.us.r-project.org')} else{library(gplots)}
+if("rstudioapi" %in% rownames(installed.packages()) == FALSE) {install.packages("rstudioapi", repos='http://cran.us.r-project.org')} else{library(rstudioapi)}
+if("tm" %in% rownames(installed.packages()) == FALSE) {install.packages("tm", repos='http://cran.us.r-project.org')} else{library(tm)}
+if("SnowballC" %in% rownames(installed.packages()) == FALSE) {install.packages("SnowballC", repos='http://cran.us.r-project.org')} else{library(SnowballC)}
+if("lsa" %in% rownames(installed.packages()) == FALSE) {install.packages("lsa", repos='http://cran.us.r-project.org')} else{library(lsa)}
+if("caret" %in% rownames(installed.packages()) == FALSE) {install.packages("caret", repos='http://cran.us.r-project.org')} else{library(caret)}
+if("ggplot2" %in% rownames(installed.packages()) == FALSE) {install.packages("ggplot2", repos='http://cran.us.r-project.org')} else{library(ggplot2)}
+if("RColorBrewer" %in% rownames(installed.packages()) == FALSE) {install.packages("RColorBrewer", repos='http://cran.us.r-project.org')} else{library(RColorBrewer)}
+if("reshape2" %in% rownames(installed.packages()) == FALSE) {install.packages("reshape2", repos='http://cran.us.r-project.org')} else{library(reshape2)}
+if("gridExtra" %in% rownames(installed.packages()) == FALSE) {install.packages("gridExtra", repos='http://cran.us.r-project.org')} else{library(gridExtra)}
+if("shinythemes" %in% rownames(installed.packages()) == FALSE) {install.packages("shinythemes", repos='http://cran.us.r-project.org')} else{library(shinythemes)}
+if("DT" %in% rownames(installed.packages()) == FALSE) {install.packages("DT", repos='http://cran.us.r-project.org')} else{library(DT)}
+if("rstudioapi" %in% rownames(installed.packages()) == FALSE) {install.packages("rstudioapi", repos='http://cran.us.r-project.org')} else{library(rstudioapi)}
+if("wordcloud" %in% rownames(installed.packages()) == FALSE) {install.packages("wordcloud", repos='http://cran.us.r-project.org')} else{library(wordcloud)}
+
+
+library(here)#
+library(janitor)
+library(lubridate)
+library(rgdal)
+library(tidyverse)
+library(shiny)
+library(dplyr)
+library(ggthemes)
+library(viridis)
+library(gplots)
+library(rstudioapi)
+library(tm)
+library(SnowballC)  
+library(lsa)
+library(caret)
+library(ggplot2)
+library(RColorBrewer)
+library(reshape2)
+library(gridExtra)
+library(shinythemes)
+library(DT)
+library(wordcloud)
+```
+
+
+Import CSV
+```{r}
+set_wd <- function() {
+  current_path <- getActiveDocumentContext()$path 
+  setwd(dirname(current_path ))
+  print( getwd() )
+}
+set_wd()
+
+billboard <- read_csv("billboard_lyrics_1964-2015.csv")
+
+```
+
+
+
+Data Pre-processing
+```{r}
+billboard$Word.Count <- sapply(billboard$Lyrics, function(x) length(strsplit(x, " ")[[1]]))
+billboard$Unique.Word.Count <- sapply(billboard$Lyrics, function(x) length(unique(strsplit(x, " ")[[1]])))
+billboard$Inverse.Density <- round(billboard$Word.Count/billboard$Unique.Word.Count, 4)
+billboard$Density <- round(billboard$Unique.Word.Count/billboard$Word.Count, 4)*100
+billboard <- billboard[billboard$Word.Count > 5, ]
+
+
+singers <- data.frame(table(billboard$Artist))
+singers$Var1 <- as.character(singers$Var1)
+singers$Artist <- sapply(singers$Var1, function(x) strsplit(x, " featuring")[[1]][1])
+singers <- aggregate(Freq ~ Artist, singers, sum)
+singers <- singers[order(-singers$Freq), ]
+singers20 <- singers[1:20, ]
+singers20<- singers20[order(singers20$Freq), ]
+singers20$Artist <- factor(singers20$Artist, levels=singers20$Artist)
+
+plot1 <- ggplot(billboard, aes(Year, Word.Count)) + geom_point(color="#075B94", alpha=.2, size=3) + 
+  labs(title="Words per Song") + 
+  stat_smooth(color="blue", se=FALSE, method="lm") +
+  ylab("Count") + xlab("Year")  +
+  theme_classic() +
+        theme(plot.title = element_text(color="black", face="bold"),
+        axis.title.x = element_text(color="black", face="bold"),
+        axis.title.y = element_text(color="black", face="bold"),
+        axis.text.x = element_text(color = "black", face = "bold"),
+        axis.text.y = element_text(color = "black", face = "bold"))
+
+
+plot2 <- ggplot(singers20, aes(Artist, Freq)) + geom_bar(stat="identity", fill="#075B94") + theme_tufte() + 
+  labs(title="Number of Songs, Top 20 singers") + geom_text(aes(label=Freq), hjust=-0.25) +
+  ylab("Number of songs") + xlab("Artist") + coord_flip() +
+  theme(plot.title = element_text(color="black", face="bold"),
+        axis.title.x = element_text(color="black", face="bold"),
+        axis.title.y = element_text(color="black", face="bold"),
+        axis.text.x = element_text(color = "black", face = "bold"),
+        axis.text.y = element_text(color = "black", face = "bold"))
+
+
+plot3 <- ggplot(singers, aes(Freq)) + geom_bar(fill="#075B94") + theme_tufte() + ylab("Number of Artists") + xlab("Number of songs/ Artist") +
+  labs(title="Number of Songs per Artist")+
+  theme(plot.title = element_text(color="black", face="bold"),
+        axis.title.x = element_text(color="black", face="bold"),
+        axis.title.y = element_text(color="black", face="bold"),
+        axis.text.x = element_text(color = "black", face = "bold"),
+        axis.text.y = element_text(color = "black", face = "bold"))
+
+
+
+common <- as.character(seq(1,51))
+for(year in seq(1,51)){
+  
+  bill1 <- subset(billboard, Year == as.character(1964+year))
+  bill <- na.omit(cbind(bill1$Song))
+  billy <- c(bill)
+  corp1 <- Corpus(VectorSource(billy))
+  corp12 <- tm_map(corp1, stripWhitespace)
+  corp13 <- tm_map(corp12, removePunctuation)
+  corp14 <- tm_map(corp13, removeWords, stopwords("english"))
+  tdm12 <- TermDocumentMatrix(corp14)
+  m <- as.matrix(tdm12)
+  v <- sort(rowSums(m), decreasing = TRUE)
+  d <- data.frame(word = names(v))
+  e <- head(d,1)
+  common[year] <- as.character(e$word[1])
+  
+}
+
+wordsbyyear <- data.frame(years = c(seq(1965,2015)), Most_used_word = common)
+
+
+common1 <- as.character(seq(1,51))
+for(year1 in seq(1,51)){
+  
+  bill1 <- subset(billboard, Year == as.character(1964+year1))
+  bill <- na.omit(cbind(bill1$Lyrics))
+  billy <- c(bill)
+  corp1 <- Corpus(VectorSource(billy))
+  corp12 <- tm_map(corp1, stripWhitespace)
+  corp13 <- tm_map(corp12, removePunctuation)
+  corp14 <- tm_map(corp13, removeWords, stopwords("english"))
+  tdm12 <- TermDocumentMatrix(corp14)
+  m <- as.matrix(tdm12)
+  v <- sort(rowSums(m), decreasing = TRUE)
+  d <- data.frame(word = names(v))
+  e <- head(d,1)
+  common1[year1] <- as.character(e$word[1])
+  
+}
+
+wordsbyyear1 <- data.frame(years = c(seq(1965,2015)), Most_used_word = common1)
+
+
+```
+
+
+UI for Shiny App
+```{r}
+ui <- fluidPage(
+  column(3, offset = 0, titlePanel("Billboard Top 100 Songs", windowTitle = "Billboard")),#theme = shinytheme("darkly"),
+  tabsetPanel(
+    tabPanel(title = "Hits based on rank",
+             
+              sidebarLayout(
+                
+                sidebarPanel(
+                  
+                  sliderInput(inputId =  "Rank", label = "Rank:", min = 1, max = 100, value = 26, step = 1)
+                  
+                  
+                ),
+                
+                
+                mainPanel(
+                  
+                  plotOutput(outputId = "barchart1",width = 1250, height = 850)
+                  
+                  
+                )
+                
+              )
+             
+    ),
+    
+    
+    tabPanel("Common words in Lyrics",
+
+             sidebarLayout(
+               
+               sidebarPanel(
+                 
+                 sliderInput(inputId =  "year", label = "Year :", min = 1965, max = 2015, value = 1970, step = 1,  sep = ""),
+                 sliderInput(inputId =  "year1", label = "Year :", min = 1965, max = 2015, value = 2000, step = 1,  sep = ""),
+                 DT::dataTableOutput("table"),
+                 textOutput("var1")
+               ),
+               
+               
+               mainPanel(
+                 tabsetPanel(
+                 
+                 tabPanel("Bar Chart",plotOutput(outputId = "barchart2",width = 1250, height = 850)),
+                 tabPanel("Word Cloud",
+                          
+                          
+                          sliderInput(inputId =  "yr", label = "Year :", min = 1965, max = 2015, value = 1990, step = 1,  sep = ""),
+                          plotOutput(outputId = "cloud",width = 1500, height = 900))
+                 
+                 )
+                 
+               )
+               
+             )
+             
+             
+                 ),              
+             
+             
+             
+             
+    tabPanel("Common words in Song Titles",
+             
+             
+             
+             sidebarLayout(
+               
+               sidebarPanel(
+                 
+                 sliderInput(inputId =  "Year", label = "Year :", min = 1965, max = 2015, value = 1970, step = 1, sep = ""),
+                 sliderInput(inputId =  "Year1", label = "Year :", min = 1965, max = 2015, value = 2000, step = 1, sep = ""),
+                 DT::dataTableOutput("table1"),
+                 textOutput("var")
+                 
+                 
+                 
+                 
+                 
+               ),
+               
+               
+               mainPanel(
+                 tabsetPanel(
+                 
+                 tabPanel("Bar Chart",plotOutput(outputId = "barchart3",width = 1250, height = 850)),
+                 tabPanel("Word Cloud",
+                          
+                          
+                          sliderInput(inputId =  "yr1", label = "Year :", min = 1965, max = 2015, value = 1990, step = 1,  sep = ""),
+                          plotOutput(outputId = "cloud1",width = 1500, height = 900))
+                 
+                 )
+                 
+               )
+               
+             )
+             
+             
+    ),
+    
+    
+    tabPanel("Additional info on Data",
+              
+                      plotOutput(outputId = "plots",width = 1900, height = 850)
+             
+    )  
+    
+    
+    
+  )
+)
+
+
+
+```
+
+
+Server for shiny App
+```{r}
+
+server <- function(input, output) {
+  
+  
+  
+  output$barchart1 <- renderPlot({
+    
+    billboard %>%  subset(Rank == input$Rank) %>% group_by(Artist) %>% count() %>%
+      ggplot(aes(x = Artist, y = n,  fill = n)) +
+      geom_col()+
+      coord_flip() +
+      ylab("Number of hits") +
+      xlab("Artist name") +
+      ggtitle(paste("Artist/Artists with most hits for Rank",as.character(input$Rank)))+
+      theme_tufte()+
+      theme(plot.title = element_text(color="black", size=25, face="bold"),
+            axis.title.x = element_text(color="black", size=20, face="bold"),
+            axis.title.y = element_text(color="black", size=20, face="bold"),
+            axis.text.x = element_text(color = "black", size  = 15, face = "bold"),
+            axis.text.y = element_text(color = "black", size  = 15, face = "bold"))+
+      scale_fill_gradient(name = "number of hits",
+                          low = "#1980C3",
+                          high = "#075B94")
+    
+    
+  })
+  
+  
+  output$barchart2 <- renderPlot({
+
+    bill11 <- subset(billboard, Year == as.character(input$year)) 
+    bill1 <- na.omit(cbind(bill11$Lyrics))
+    billy1 <- c(bill1)
+    corp1111 <- Corpus(VectorSource(billy1))
+    corp111 <- tm_map(corp1111, stripWhitespace)
+    corp11 <- tm_map(corp111, removePunctuation)
+    corp1 <- tm_map(corp11, removeWords, stopwords("english"))
+    tdm1 <- TermDocumentMatrix(corp1)
+    m1 <- as.matrix(tdm1)
+    v1 <- sort(rowSums(m1), decreasing = TRUE)
+    d1 <- data.frame(word = names(v1), Frequency = v1)
+    e1 <- head(d1,20)
+    p1 <- e1 %>%
+     ggplot(aes(x = word, y = Frequency, fill = Frequency)) +
+      geom_col()+
+      coord_flip() +
+      ylab("Frequency of the Word") +
+      xlab("Word") +
+      theme_tufte()+
+    ggtitle(paste("20 most Frequent Song Lyrics words in",as.character(input$year)))+
+    geom_text(aes(label=Frequency), hjust=-0.25)+
+      theme(plot.title = element_text(color="black", size=25, face="bold"),
+            axis.title.x = element_text(color="black", size=20, face="bold"),
+            axis.title.y = element_text(color="black", size=20, face="bold"),
+            axis.text.x = element_text(color = "black", size  = 15, face = "bold"),
+            axis.text.y = element_text(color = "black", size  = 15, face = "bold"))+
+      scale_fill_gradient(name = "Frequency of word",
+                          low = "#1980C3",
+                          high = "#075B94")
+    
+    
+    bill22 <- subset(billboard, Year == as.character(input$year1)) 
+    bill2 <- na.omit(cbind(bill22$Lyrics))
+    billy2 <- c(bill2)
+    corp2222 <- Corpus(VectorSource(billy2))
+    corp222 <- tm_map(corp2222, stripWhitespace)
+    corp22 <- tm_map(corp222, removePunctuation)
+    corp2 <- tm_map(corp22, removeWords, stopwords("english"))
+    tdm2 <- TermDocumentMatrix(corp2)
+    m2 <- as.matrix(tdm2)
+    v2 <- sort(rowSums(m2), decreasing = TRUE)
+    d2 <- data.frame(word = names(v2), Frequency = v2)
+    e2 <- head(d2,20)
+    p2 <- e2 %>%
+     ggplot(aes(x = word, y = Frequency, fill = Frequency)) +
+      geom_col()+
+      coord_flip() +
+      ylab("Frequency of the Word") +
+      xlab("Word") +
+      theme_tufte()+
+    ggtitle(paste("20 most Frequent Song Lyrics words in",as.character(input$year1)))+
+    geom_text(aes(label=Frequency), hjust=-0.25)+
+      theme(plot.title = element_text(color="black", size=25, face="bold"),
+            axis.title.x = element_text(color="black", size=20, face="bold"),
+            axis.title.y = element_text(color="black", size=20, face="bold"),
+            axis.text.x = element_text(color = "black", size  = 15, face = "bold"),
+            axis.text.y = element_text(color = "black", size  = 15, face = "bold"))+
+      scale_fill_gradient(name = "Frequency of word",
+                          low = "#B67601",
+                          high = "#E19102")
+    
+    grid.arrange(p1, p2, ncol=2, widths=c(0.50, 0.50))
+    
+  })
+  
+  
+  output$table <- DT::renderDataTable(DT::datatable({
+  data <- wordsbyyear1
+  data
+  
+  }))
+  
+  output$table1 <- DT::renderDataTable(DT::datatable({
+    data <- wordsbyyear
+    data
+    
+  }))  
+  
+  
+  
+  output$barchart3 <- renderPlot({
+    bill33 <- subset(billboard, Year == as.character(input$Year)) 
+    bill3 <- na.omit(cbind(bill33$Song))
+    billy3 <- c(bill3)
+    corp3333 <- Corpus(VectorSource(billy3))
+    corp333 <- tm_map(corp3333, stripWhitespace)
+    corp33 <- tm_map(corp333, removePunctuation)
+    corp3 <- tm_map(corp33, removeWords, stopwords("english"))
+    tdm3 <- TermDocumentMatrix(corp3)
+    m3 <- as.matrix(tdm3)
+    v3 <- sort(rowSums(m3), decreasing = TRUE)
+    d3 <- data.frame(word = names(v3), Frequency = v3)
+    e3 <- head(d3,20)
+    p3 <- e3 %>%
+     ggplot(aes(x = word, y = Frequency, fill = Frequency)) +
+      geom_col()+
+      coord_flip() +
+      ylab("Frequency of the Word") +
+      xlab("Word") +
+      theme_tufte()+
+    ggtitle(paste("20 most Frequent Song Title words in",as.character(input$Year)))+
+    geom_text(aes(label=Frequency), hjust=-0.25)+
+      theme(plot.title = element_text(color="black", size=25, face="bold"),
+            axis.title.x = element_text(color="black", size=20, face="bold"),
+            axis.title.y = element_text(color="black", size=20, face="bold"),
+            axis.text.x = element_text(color = "black", size  = 15, face = "bold"),
+            axis.text.y = element_text(color = "black", size  = 15, face = "bold"))+
+      scale_fill_gradient(name = "Frequency of word",
+                          low = "#1980C3",
+                          high = "#075B94")
+    
+    
+    bill44 <- subset(billboard, Year == as.character(input$Year1)) 
+    bill4 <- na.omit(cbind(bill44$Song))
+    billy4 <- c(bill4)
+    corp4444 <- Corpus(VectorSource(billy4))
+    corp444 <- tm_map(corp4444, stripWhitespace)
+    corp44 <- tm_map(corp444, removePunctuation)
+    corp4 <- tm_map(corp44, removeWords, stopwords("english"))
+    tdm4 <- TermDocumentMatrix(corp4)
+    m4 <- as.matrix(tdm4)
+    v4 <- sort(rowSums(m4), decreasing = TRUE)
+    d4 <- data.frame(word = names(v4), Frequency = v4)
+    e4 <- head(d4,20)
+    p4 <- e4 %>%
+     ggplot(aes(x = word, y = Frequency, fill = Frequency)) +
+      geom_col()+
+      coord_flip() +
+      ylab("Frequency of the Word") +
+      xlab("Word") +
+      theme_tufte()+
+    ggtitle(paste("20 most Frequent Song Title words in",as.character(input$Year1)))+
+    geom_text(aes(label=Frequency), hjust=-0.25)+
+      theme(plot.title = element_text(color="black", size=25, face="bold"),
+            axis.title.x = element_text(color="black", size=20, face="bold"),
+            axis.title.y = element_text(color="black", size=20, face="bold"),
+            axis.text.x = element_text(color = "black", size  = 15, face = "bold"),
+            axis.text.y = element_text(color = "black", size  = 15, face = "bold"))+
+      scale_fill_gradient(name = "Frequency of word",
+                          low = "#B67601",
+                          high = "#E19102")
+    
+    grid.arrange(p3, p4, ncol=2, widths=c(0.50, 0.50))
+        
+        
+  })
+  
+  
+  
+  output$plots <- renderPlot({
+
+    grid.arrange(plot1,plot2,plot3, ncol=3, widths=c(0.35, 0.35, 0.30))    
+    
+  })
+  
+  output$var <- renderText({ 
+    paste("It can be observed that the most frequently used word is love. It is the most used word in song titles almost every year", input$var)
+  })
+  
+  
+  output$var1 <- renderText({ 
+    paste("It can be observed that love is the most frequently used word in song lyrics but the trend is shifting towards like from year 1995", input$var1)
+  })  
+  
+  
+    output$cloud <- renderPlot({ 
+      
+      
+    bill55 <- subset(billboard, Year == as.character(input$yr)) 
+    bill5 <- na.omit(cbind(bill55$Lyrics))
+    billy5 <- c(bill5)
+    corp5555 <- Corpus(VectorSource(billy5))
+    corp555 <- tm_map(corp5555, stripWhitespace)
+    corp55 <- tm_map(corp555, removePunctuation)
+    corp5 <- tm_map(corp55, removeWords, stopwords("english"))
+    tdm5 <- TermDocumentMatrix(corp5)
+    m5 <- as.matrix(tdm5)
+    v5 <- sort(rowSums(m5), decreasing = TRUE)
+    d5 <- data.frame(word = names(v5), Frequency = v5)
+      
+      wordcloud(words = d5$word, freq = d5$Frequency, min.freq = 1,
+          max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))
+    
+  }) 
+    
+    
+    
+    output$cloud1 <- renderPlot({ 
+      
+      
+    bill66 <- subset(billboard, Year == as.character(input$yr1)) 
+    bill6 <- na.omit(cbind(bill66$Lyrics))
+    billy6 <- c(bill6)
+    corp6666 <- Corpus(VectorSource(billy6))
+    corp666 <- tm_map(corp6666, stripWhitespace)
+    corp66 <- tm_map(corp666, removePunctuation)
+    corp6 <- tm_map(corp66, removeWords, stopwords("english"))
+    tdm6 <- TermDocumentMatrix(corp6)
+    m6 <- as.matrix(tdm6)
+    v6 <- sort(rowSums(m6), decreasing = TRUE)
+    d6 <- data.frame(word = names(v6), Frequency = v6)
+    
+      
+      wordcloud(words = d6$word, freq = d6$Frequency, min.freq = 1,
+           max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))
+    
+  }) 
+    
+  
+}
+  
+
+
+```
+
+
+Launch Shiny
+```{r}
+shinyApp(ui = ui, server = server)
+
+```
+
